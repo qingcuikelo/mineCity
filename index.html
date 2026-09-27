@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>MineCity 复古等距城市沙盒</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%2305070a'/><path d='M8 2l6 4-6 4-6-4z' fill='%235f9334'/><path d='M2 8v3l6 4 6-4V8l-6 4z' fill='%236a4a2c'/></svg>">
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%; background: #07090c; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    font: 12px monospace; color: #8d99a6;
+  }
+  #bezel {
+    position: relative; padding: 8px; border-radius: 6px;
+    background: linear-gradient(160deg, #2a303a, #12161b 60%, #1a1f26);
+    box-shadow: 0 0 0 1px #05070a, 0 0 30px rgba(0,0,0,0.8), inset 0 0 10px rgba(0,0,0,0.6);
+  }
+  canvas#display {
+    display: block; image-rendering: pixelated; background: #05070a;
+    box-shadow: 0 0 24px rgba(90, 166, 180, 0.12);
+  }
+  #boot {
+    position: absolute; inset: 8px; display: flex; align-items: center; justify-content: center;
+    background: #05070a; color: #8fbf50; font: 14px monospace;
+  }
+  #boot.hidden { display: none; }
+</style>
+</head>
+<body>
+<div id="bezel">
+  <canvas id="display" width="1280" height="800"></canvas>
+  <div id="boot">BOOTING MINECITY...</div>
+</div>
+<script type="module">
+  import { boot } from './src/main.js';
+  boot().catch((err) => {
+    const b = document.getElementById('boot');
+    b.classList.remove('hidden');
+    b.style.color = '#d16a44';
+    b.textContent = '启动失败: ' + err.message;
+    console.error(err);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>minecity font bakery</title>
+<style>
+  body { background:#1a1f26; color:#dde4ea; font:13px monospace; padding:16px; }
+  canvas { image-rendering: pixelated; background:#000; border:1px solid #4b5766; }
+  button { background:#313a44; color:#dde4ea; border:2px outset #5b6674; font:14px monospace; padding:6px 14px; cursor:pointer; }
+  #log { white-space:pre-wrap; color:#8fbf50; margin-top:10px; }
+  .row { display:flex; gap:16px; align-items:flex-start; margin:10px 0; }
+</style>
+</head>
+<body>
+<h1>MineCity 字体烘焙</h1>
+<p>浏览器把系统点阵字体光栅化为 1-bit 点阵（ASCII 12px + SimSun 12px 汉字），POST 到 <code>/__bakery/save</code> 落盘为 <code>assets/font-glyphs.json</code>。</p>
+<p>字符集：ASCII 32-126 + 项目中文清单。</p>
+<button id="bake">Bake ▶</button>
+<div class="row"><canvas id="prev" width="900" height="240"></canvas></div>
+<div id="log"></div>
+<script>
+const ASCII = [];
+for (let i = 32; i <= 126; i++) ASCII.push(String.fromCharCode(i));
+
+const SYMBOLS = '»▶❚×°—·…←→↑↓√';
+const CJK = "°·»×—…←↑→↓√▶。「」一上与业丢中为亮人伏会位低住体余作使保修停光入公关具再出击分划删别到刷前功动助勤化区升单厅取口古可右号合名后向否和商器回园图土在地场址均坐块城域堂塑处复多夜够大天失套始子字存学宅完定小局层居岩工左已市布带帮平年并广序度座建开当形待很心息感戏成房打扫找把抖抬拖拟拽指按挖据排接推描提插操放政效教数整文新方旋无日时星是昼显晴暂月有期木未本机来板林染栅标栋树校样格档森楼槽模次欢止正民气水求汉沙没法泥浏消清渲游滚满漂灌灯灵点烘焙然版牌玩理生用的盒盖盘目直石确示离种秒积称移空笔符等筑精系级线统继续编缩网置美者自色草落藏行街要覆观规视览角认设试误读调谢貌败起足距路车转轮辑输达迎运这进连退适选通速造道邻重钟铺错键镇长门闭闲间阵降限除随隐集雨雪需面音项顺预高鼠（），：";
+
+const TARGETS = [
+  { name: 'ascii', chars: ASCII, font: '12px "SimSun"', threshold: 0.3, bold: 1 },
+  { name: 'ascii_alt', chars: ASCII, font: '12px "Terminal"', threshold: 0.3, bold: 1 },
+  { name: 'cjk', chars: [...new Set((CJK + SYMBOLS).split(''))], font: '12px "SimSun"', threshold: 0.35, bold: 0 },
+];
+
+const cvs = document.createElement('canvas');
+const ctx = cvs.getContext('2d', { willReadFrequently: true });
+
+function renderGlyph(ch, font, threshold = 0.4, bold = 0) {
+  const W = 16, H = 18;
+  const pad = 2;
+  cvs.width = W; cvs.height = H;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff';
+  ctx.font = font;
+  ctx.textBaseline = 'alphabetic';
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillText(ch, pad, H - pad - 3);
+  const img = ctx.getImageData(0, 0, W, H).data;
+  let minX = W, minY = H, maxX = -1, maxY = -1;
+  const cut = Math.round(255 * threshold);
+  const raw = (x, y) => img[(y * W + x) * 4] > cut;
+  const ink = (x, y) => {
+    if (raw(x, y)) return true;
+    for (let b = 1; b <= bold; b++) if (x + b < W && raw(x + b, y)) return true;
+    return false;
+  };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (ink(x, y)) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+  }
+  if (maxX < 0) return null;
+  const w = maxX - minX + 1, h = maxY - minY + 1;
+  let bits = '';
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) bits += ink(minX + x, minY + y) ? '1' : '0';
+  const adv = Math.round(ctx.measureText(ch).width);
+  return { adv, dx: minX - pad, dy: minY - (H - pad - 3), w, h, bits };
+}
+
+function bakeTarget(t) {
+  const glyphs = {};
+  let missing = 0;
+  for (const ch of t.chars) {
+    const g = renderGlyph(ch, t.font, t.threshold, t.bold || 0);
+    if (g) glyphs[ch] = g; else missing++;
+  }
+  return { font: t.font, glyphs, missing, count: t.chars.length };
+}
+
+function drawPreview(results) {
+  const pc = document.getElementById('prev');
+  const pctx = pc.getContext('2d');
+  pctx.fillStyle = '#101216'; pctx.fillRect(0, 0, pc.width, pc.height);
+  let x = 6, y = 4;
+  for (const r of results) {
+    pctx.fillStyle = '#f2d65a';
+    pctx.font = '10px monospace';
+    pctx.fillText(r.font + '  (' + Object.keys(r.glyphs).length + '/' + r.count + ')', x, y + 8);
+    y += 16;
+    for (const [ch, g] of Object.entries(r.glyphs)) {
+      if (x + g.w > pc.width - 6) { x = 6; y += 16; }
+      pctx.fillStyle = '#fff';
+      for (let iy = 0; iy < g.h; iy++) for (let ix = 0; ix < g.w; ix++) {
+        if (g.bits[iy * g.w + ix] === '1') pctx.fillRect(x + ix, y + iy, 1, 1);
+      }
+      x += Math.max(g.adv, 7) + 1;
+    }
+    x = 6; y += 22;
+  }
+  // mixed sample line
+  const ascii = results[0].glyphs, cjk = results[2].glyphs;
+  const sample = 'MineCity 存档 SAVE 12:00 地形整平 [ESC] 退出';
+  let sx = 6, sy = y + 14;
+  for (const ch of sample) {
+    const g = ascii[ch] || cjk[ch];
+    if (!g) { sx += 6; continue; }
+    pctx.fillStyle = '#f2d65a';
+    for (let iy = 0; iy < g.h; iy++) for (let ix = 0; ix < g.w; ix++) {
+      if (g.bits[iy * g.w + ix] === '1') pctx.fillRect(sx + ix, sy + iy, 1, 1);
+    }
+    sx += g.adv;
+  }
+}
+
+document.getElementById('bake').onclick = async () => {
+  const log = document.getElementById('log');
+  log.textContent = 'baking...\n';
+  const results = TARGETS.map(bakeTarget);
+  for (const r of results) log.textContent += r.font + ': ' + Object.keys(r.glyphs).length + '/' + r.count + ' glyphs\n';
+  drawPreview(results);
+  const payload = {
+    file: 'font-glyphs.json',
+    text: JSON.stringify({
+      generated: new Date().toISOString(),
+      ascii: results[0].glyphs,
+      asciiAlt: results[1].glyphs,
+      cjk: results[2].glyphs,
+    }),
+  };
+  const res = await fetch('/__bakery/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const j = await res.json();
+  log.textContent += JSON.stringify(j) + '\n';
+  if (j.ok) log.textContent += 'saved assets/font-glyphs.json\n';
+};
+setTimeout(() => document.getElementById('bake').click(), 250);
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "minecity",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Retro pre-rendered isometric city-building sandbox (DOS/PC98 style)",
+  "scripts": {
+    "build": "node tools/build-assets.js",
+    "verify": "node tools/verify.js",
+    "charset": "node tools/sync-charset.js",
+    "preview": "node tools/build-assets.js --preview-only",
+    "dev": "node tools/serve.js",
+    "start": "node tools/serve.js"
+  }
+}
